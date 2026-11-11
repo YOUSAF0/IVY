@@ -1,0 +1,6 @@
+{
+  "name": "Student Document Verification & Excel Reporting System",
+  "description": "Automated Google Drive and folder scanner for student application folders with dynamic document classification and 5-sheet Excel matrix generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
