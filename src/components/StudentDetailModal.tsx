@@ -83,10 +83,21 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   </button>
                 )}
               </div>
+              <div className="flex items-center space-x-1.5">
+                <span className="font-semibold text-slate-300">Belongs To:</span>{' '}
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                  {student.belongsTo || student.parentFolder || 'Admissions'}
+                </span>
+              </div>
               <div>
                 <span className="font-semibold text-slate-300">Folder:</span>{' '}
                 <span className="font-mono text-slate-300">{student.folderName}</span>
               </div>
+              {student.folderPath && student.folderPath !== student.folderName && (
+                <div className="w-full text-[11px] text-slate-500 font-mono">
+                  Full Path: {student.folderPath}
+                </div>
+              )}
             </div>
           </div>
 

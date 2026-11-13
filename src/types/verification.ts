@@ -43,6 +43,21 @@ export interface StudentFolder {
   files: ScannedFile[];
   unidentifiedFiles: ScannedFile[];
   reason?: string;
+  folderPath?: string;
+  parentFolder?: string;
+  belongsTo?: string;
+}
+
+export interface LocalFolderHierarchyNode {
+  path: string;
+  name: string;
+  depth: number;
+  fileCount: number;
+  totalSubFilesCount: number;
+  isStudentCandidate: boolean;
+  detectedName?: string;
+  detectedCnic?: string;
+  children: LocalFolderHierarchyNode[];
 }
 
 export interface DocumentCategory {

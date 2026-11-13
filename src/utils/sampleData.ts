@@ -266,6 +266,17 @@ export function buildSampleSession(
       childFiles
     );
 
+    const programCategory = raw.files.some(f => /computer|cs/i.test(f.name))
+      ? 'Computer Science'
+      : raw.files.some(f => /surgery|clinical|medical/i.test(f.name))
+      ? 'Medical & Surgery'
+      : raw.files.some(f => /business|bba|hnd/i.test(f.name))
+      ? 'Business Administration'
+      : 'Undergraduate General';
+
+    student.parentFolder = programCategory;
+    student.belongsTo = programCategory;
+
     if (student.identificationStatus === 'UNIDENTIFIED') {
       unidentifiedFolders.push(student);
     } else {

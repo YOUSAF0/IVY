@@ -1,8 +1,8 @@
 import { ConfidenceLevel, ScannedFile, StudentFolder, StudentIdentificationStatus } from '../types/verification';
 
-// CNIC format: 5 digits - 7 digits - 1 digit
-export const CNIC_REGEX = /\b(\d{5})[-_]?(\d{7})[-_]?(\d{1})\b/;
-export const UNHYPHENATED_CNIC_REGEX = /\b\d{13}\b/;
+// CNIC format: 5 digits - 7 digits - 1 digit (works even when bordered by underscores or letters)
+export const CNIC_REGEX = /(?<!\d)(\d{5})[-_\s]?(\d{7})[-_\s]?(\d{1})(?!\d)/;
+export const UNHYPHENATED_CNIC_REGEX = /(?<!\d)\d{13}(?!\d)/;
 
 export function formatCnic(raw: string): string {
   const match = raw.match(CNIC_REGEX);
@@ -37,13 +37,7 @@ const NON_STUDENT_FOLDER_KEYWORDS = [
   'blank form',
   'instructions',
   'guideline',
-  'sample',
-  'draft',
-  'new folder',
-  'temp',
-  'test',
   'backup',
-  'batch',
   'incoming',
   'export',
 ];
@@ -65,10 +59,11 @@ export function identifyStudentFromFolder(
 
   const cleanFolderName = folderName.trim();
 
-  // Check if definitely non-student folder
-  const isNonStudentFolder = NON_STUDENT_FOLDER_KEYWORDS.some(kw =>
-    cleanFolderName.toLowerCase().includes(kw)
-  );
+  // Check if administrative / non-student folder
+  const matchesAdminKeyword = NON_STUDENT_FOLDER_KEYWORDS.some(kw => {
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?:^|[^a-zA-Z])${escaped}s?(?:$|[^a-zA-Z])`, 'i').test(cleanFolderName);
+  });
 
   // 1. Priority 1: Extract CNIC from folder name
   const folderCnicMatch = cleanFolderName.match(CNIC_REGEX);
@@ -114,7 +109,7 @@ export function identifyStudentFromFolder(
       }
 
       // If student name missing from folder name, check if file starts with a name
-      if (!studentName && /_cnic|_degree|_cert/i.test(f.fileName)) {
+      if (!studentName && /_cnic|_degree|_cert|_statement|_photo/i.test(f.fileName)) {
         const candidate = f.fileName
           .split(/_cnic|_degree|_cert|_statement|_photo/i)[0]
           .replace(/[_\-]/g, ' ')
@@ -128,6 +123,8 @@ export function identifyStudentFromFolder(
       }
     }
   }
+
+  const isNonStudentFolder = matchesAdminKeyword && !cnic;
 
   // 3. Determine Status & Confidence
   if (isNonStudentFolder) {

@@ -19,20 +19,53 @@ export function generateVerificationExcel(
     s => s.identificationStatus !== 'UNIDENTIFIED'
   );
 
-  const categories = options.activeCategories && options.activeCategories.length > 0
+  const baseCategories = options.activeCategories && options.activeCategories.length > 0
     ? options.activeCategories
     : session.categories;
 
+  // Ensure ANY classified document category actually found in student folders is included in matrix columns
+  const catSet = new Set(baseCategories);
+  for (const s of validStudents) {
+    for (const f of s.files) {
+      if (f.category && f.category !== 'Unknown' && !Array.from(catSet).some(c => c.toLowerCase() === f.category.toLowerCase())) {
+        catSet.add(f.category);
+      }
+    }
+  }
+  const categories = Array.from(catSet);
+
   // --------------------------------------------------------------------------
-  // SHEET 1: Verification Report (Student x Document Matrix)
+  // SHEET 1: Verification Report (Student x Document Matrix + Exact Folder Document List)
   // --------------------------------------------------------------------------
-  const matrixHeaders = ['Sr no', 'Student Name', 'CNIC', ...categories];
+  const matrixHeaders = [
+    'Sr no',
+    'Student Name',
+    'CNIC',
+    'Belongs To (Department / Program)',
+    'Total Files in Folder',
+    'Exact Document List (Categories)',
+    'Exact File Names in Folder',
+    ...categories,
+  ];
 
   const matrixRows = validStudents.map((student, idx) => {
+    const exactCategoriesList = Array.from(
+      new Set(
+        student.files
+          .map(f => f.category)
+          .filter(c => c && c !== 'Unknown')
+      )
+    );
+    const exactFileNamesList = student.files.map(f => f.fileName);
+
     const row: Record<string, string | number | boolean> = {
       'Sr no': idx + 1,
       'Student Name': student.studentName,
       CNIC: mask ? maskCnic(student.cnic) : student.cnic || '',
+      'Belongs To (Department / Program)': student.belongsTo || student.parentFolder || session.folderName,
+      'Total Files in Folder': student.files.length,
+      'Exact Document List (Categories)': exactCategoriesList.length > 0 ? exactCategoriesList.join(', ') : 'No Classified Documents',
+      'Exact File Names in Folder': exactFileNamesList.length > 0 ? exactFileNamesList.join(', ') : 'Empty Folder',
     };
 
     // For every category, check if student has at least 1 document matching
@@ -56,16 +89,20 @@ export function generateVerificationExcel(
     { wch: 8 },  // Sr no
     { wch: 28 }, // Student Name
     { wch: 20 }, // CNIC
+    { wch: 32 }, // Belongs To (Department / Program)
+    { wch: 18 }, // Total Files in Folder
+    { wch: 44 }, // Exact Document List (Categories)
+    { wch: 52 }, // Exact File Names in Folder
     ...categories.map(cat => ({ wch: Math.max(cat.length + 3, 14) })),
   ];
   wsMatrix['!cols'] = colWidths;
 
-  // Freeze top row and first 3 columns (Sr no, Student Name, CNIC)
+  // Freeze top row and first 4 columns (Sr no, Student Name, CNIC, Belongs To)
   wsMatrix['!views'] = [{
     state: 'frozen',
-    xSplit: 3,
+    xSplit: 4,
     ySplit: 1,
-    topLeftCell: 'D2',
+    topLeftCell: 'E2',
     activeCell: 'A1',
   }];
 
@@ -89,6 +126,13 @@ export function generateVerificationExcel(
   const ambiguousCount = session.students.filter(s => s.identificationStatus === 'AMBIGUOUS').length;
   const unidentifiedCount = session.unidentifiedFolders.length + session.students.filter(s => s.identificationStatus === 'UNIDENTIFIED').length;
 
+  // Group students by belongsTo
+  const belongsToMap = new Map<string, number>();
+  for (const s of validStudents) {
+    const key = s.belongsTo || s.parentFolder || session.folderName;
+    belongsToMap.set(key, (belongsToMap.get(key) || 0) + 1);
+  }
+
   const summaryData: (string | number)[][] = [
     ['STUDENT DOCUMENT VERIFICATION SYSTEM - SCAN SUMMARY'],
     ['Generated On', new Date().toLocaleString()],
@@ -103,9 +147,21 @@ export function generateVerificationExcel(
     ['Unidentified Folders', unidentifiedCount, `${totalFolders ? ((unidentifiedCount / totalFolders) * 100).toFixed(1) : 0}%`],
     ['Total Documents Discovered', session.totalFilesCount, '—'],
     [],
-    ['DOCUMENT CATEGORY AVAILABILITY STATISTICS'],
-    ['Category Name', 'Student Count With Document', 'Availability Rate (%)'],
+    ['STUDENTS BY PROGRAM / SUB-FOLDER (WHERE THEY BELONG)'],
+    ['Program / Sub-folder', 'Enrolled Applicants', 'Share of Total (%)'],
   ];
+
+  for (const [prog, count] of belongsToMap.entries()) {
+    summaryData.push([
+      prog,
+      count,
+      validStudents.length ? `${((count / validStudents.length) * 100).toFixed(1)}%` : '0%',
+    ]);
+  }
+
+  summaryData.push([]);
+  summaryData.push(['DOCUMENT CATEGORY AVAILABILITY STATISTICS']);
+  summaryData.push(['Category Name', 'Student Count With Document', 'Availability Rate (%)']);
 
   for (const cat of categories) {
     const studentsWithDoc = validStudents.filter(s =>
@@ -118,7 +174,7 @@ export function generateVerificationExcel(
   }
 
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-  wsSummary['!cols'] = [{ wch: 36 }, { wch: 28 }, { wch: 24 }];
+  wsSummary['!cols'] = [{ wch: 38 }, { wch: 28 }, { wch: 24 }];
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
   // --------------------------------------------------------------------------
@@ -127,6 +183,8 @@ export function generateVerificationExcel(
   const docDetailsHeaders = [
     'Student Name',
     'CNIC',
+    'Belongs To (Program / Department)',
+    'Sub-folder / Path',
     'Document Category',
     'File Name',
     'Google Drive File ID',
@@ -144,6 +202,8 @@ export function generateVerificationExcel(
       docDetailsRows.push({
         'Student Name': student.studentName,
         CNIC: mask ? maskCnic(student.cnic) : student.cnic || '—',
+        'Belongs To (Program / Department)': student.belongsTo || student.parentFolder || session.folderName,
+        'Sub-folder / Path': student.folderPath || student.folderName,
         'Document Category': f.category,
         'File Name': f.fileName,
         'Google Drive File ID': f.driveFileId,
@@ -160,20 +220,22 @@ export function generateVerificationExcel(
     header: docDetailsHeaders,
   });
   wsDocDetails['!cols'] = [
-    { wch: 26 },
-    { wch: 20 },
-    { wch: 24 },
-    { wch: 32 },
-    { wch: 24 },
-    { wch: 36 },
-    { wch: 20 },
-    { wch: 12 },
-    { wch: 22 },
-    { wch: 14 },
+    { wch: 26 }, // Student Name
+    { wch: 20 }, // CNIC
+    { wch: 30 }, // Belongs To
+    { wch: 34 }, // Sub-folder / Path
+    { wch: 26 }, // Document Category
+    { wch: 34 }, // File Name
+    { wch: 24 }, // Drive File ID
+    { wch: 36 }, // Drive URL
+    { wch: 22 }, // MIME Type
+    { wch: 14 }, // File Extension
+    { wch: 22 }, // Detection Method
+    { wch: 14 }, // Confidence
   ];
   if (docDetailsRows.length > 0) {
     wsDocDetails['!autofilter'] = {
-      ref: `A1:J${docDetailsRows.length + 1}`,
+      ref: `A1:L${docDetailsRows.length + 1}`,
     };
   }
   XLSX.utils.book_append_sheet(wb, wsDocDetails, 'Document Details');
@@ -231,6 +293,8 @@ export function generateVerificationExcel(
     'Folder Name',
     'Folder ID',
     'Drive URL',
+    'Files in Folder',
+    'Exact File Names in Folder',
     'Possible Student Name',
     'Possible CNIC',
     'Identification Status',
@@ -246,6 +310,8 @@ export function generateVerificationExcel(
     'Folder Name': uf.folderName,
     'Folder ID': uf.folderId,
     'Drive URL': uf.driveUrl,
+    'Files in Folder': uf.files.length,
+    'Exact File Names in Folder': uf.files.length > 0 ? uf.files.map(f => f.fileName).join(', ') : 'Empty Folder',
     'Possible Student Name': uf.studentName !== 'Unknown Student' ? uf.studentName : '—',
     'Possible CNIC': uf.cnic || '—',
     'Identification Status': uf.identificationStatus,
@@ -259,6 +325,8 @@ export function generateVerificationExcel(
     { wch: 30 },
     { wch: 24 },
     { wch: 36 },
+    { wch: 16 },
+    { wch: 46 },
     { wch: 24 },
     { wch: 20 },
     { wch: 22 },
@@ -284,17 +352,50 @@ export function downloadBlob(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
-export function exportMatrixToCsv(session: ScanSession, categories: string[], mask: boolean): Blob {
-  const headers = ['Sr no', 'Student Name', 'CNIC', ...categories];
+export function exportMatrixToCsv(session: ScanSession, baseCategories: string[], mask: boolean): Blob {
   const validStudents = session.students.filter(s => s.identificationStatus !== 'UNIDENTIFIED');
+  const catSet = new Set(baseCategories);
+  for (const s of validStudents) {
+    for (const f of s.files) {
+      if (f.category && f.category !== 'Unknown' && !Array.from(catSet).some(c => c.toLowerCase() === f.category.toLowerCase())) {
+        catSet.add(f.category);
+      }
+    }
+  }
+  const categories = Array.from(catSet);
+
+  const headers = [
+    'Sr no',
+    'Student Name',
+    'CNIC',
+    'Belongs To (Department / Program)',
+    'Total Files in Folder',
+    'Exact Document List (Categories)',
+    'Exact File Names in Folder',
+    ...categories,
+  ];
 
   const rows = validStudents.map((s, idx) => {
     const cnicVal = mask ? maskCnic(s.cnic) : s.cnic || '';
+    const belongsToVal = s.belongsTo || s.parentFolder || session.folderName;
+    const exactCategoriesList = Array.from(
+      new Set(s.files.map(f => f.category).filter(c => c && c !== 'Unknown'))
+    ).join(', ');
+    const exactFileNamesList = s.files.map(f => f.fileName).join(', ');
     const docVals = categories.map(cat => {
       const has = s.files.some(f => f.category.toLowerCase() === cat.toLowerCase());
       return has ? 'TRUE' : '';
     });
-    return [idx + 1, `"${s.studentName.replace(/"/g, '""')}"`, `"${cnicVal}"`, ...docVals].join(',');
+    return [
+      idx + 1,
+      `"${s.studentName.replace(/"/g, '""')}"`,
+      `"${cnicVal}"`,
+      `"${belongsToVal.replace(/"/g, '""')}"`,
+      s.files.length,
+      `"${exactCategoriesList.replace(/"/g, '""')}"`,
+      `"${exactFileNamesList.replace(/"/g, '""')}"`,
+      ...docVals,
+    ].join(',');
   });
 
   const csvContent = [headers.join(','), ...rows].join('\n');

@@ -11,6 +11,7 @@ import {
   UserCheck,
   UserX,
   Sparkles,
+  Folder,
 } from 'lucide-react';
 import { ScanSession, StudentFolder } from '../types/verification';
 import { maskCnic } from '../utils/studentIdentification';
@@ -30,10 +31,21 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [belongsToFilter, setBelongsToFilter] = useState<string>('ALL');
   const [docFilter, setDocFilter] = useState<{
     category: string;
     state: 'has' | 'missing' | 'any';
   }>({ category: '', state: 'any' });
+
+  // Discovered departments / sub-folders where students belong
+  const uniqueBelongsToList = useMemo(() => {
+    const set = new Set<string>();
+    session.students.forEach(s => {
+      const val = s.belongsTo || s.parentFolder;
+      if (val) set.add(val);
+    });
+    return Array.from(set).sort();
+  }, [session.students]);
 
   // Filter students
   const filteredStudents = useMemo(() => {
@@ -44,7 +56,8 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
         const matchesName = student.studentName.toLowerCase().includes(term);
         const matchesCnic = student.cnic.toLowerCase().includes(term);
         const matchesFolder = student.folderName.toLowerCase().includes(term);
-        if (!matchesName && !matchesCnic && !matchesFolder) return false;
+        const matchesBelongsTo = (student.belongsTo || student.parentFolder || '').toLowerCase().includes(term);
+        if (!matchesName && !matchesCnic && !matchesFolder && !matchesBelongsTo) return false;
       }
 
       // 2. Status Filter
@@ -52,7 +65,13 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
         if (student.identificationStatus !== statusFilter) return false;
       }
 
-      // 3. Dynamic Document filter
+      // 3. Belongs To (Sub-folder / Department / Program) filter
+      if (belongsToFilter !== 'ALL') {
+        const belongsVal = student.belongsTo || student.parentFolder || '';
+        if (belongsVal !== belongsToFilter) return false;
+      }
+
+      // 4. Dynamic Document filter
       if (docFilter.category && docFilter.state !== 'any') {
         const hasDoc = student.files.some(
           f => f.category.toLowerCase() === docFilter.category.toLowerCase()
@@ -63,9 +82,20 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
 
       return true;
     });
-  }, [session.students, searchTerm, statusFilter, docFilter]);
+  }, [session.students, searchTerm, statusFilter, belongsToFilter, docFilter]);
 
-  const categories = activeCategories.length > 0 ? activeCategories : session.categories;
+  const categories = useMemo(() => {
+    const base = activeCategories.length > 0 ? activeCategories : session.categories;
+    const set = new Set(base);
+    session.students.forEach(s => {
+      s.files.forEach(f => {
+        if (f.category && f.category !== 'Unknown' && !Array.from(set).some(c => c.toLowerCase() === f.category.toLowerCase())) {
+          set.add(f.category);
+        }
+      });
+    });
+    return Array.from(set);
+  }, [activeCategories, session.categories, session.students]);
 
   // Render status badge
   const renderStatusBadge = (status: string) => {
@@ -161,11 +191,30 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
               )}
             </div>
 
-            {(searchTerm || statusFilter !== 'ALL' || docFilter.category) && (
+            {/* Belongs To (Department / Program / Sub-folder) Filter */}
+            {uniqueBelongsToList.length > 0 && (
+              <div className="flex items-center space-x-1.5 bg-slate-800/80 border border-slate-700/80 rounded-xl px-2.5 py-1 text-xs">
+                <Folder className="w-3.5 h-3.5 text-indigo-400 mr-1" />
+                <span className="text-slate-400 text-[11px]">Belongs To:</span>
+                <select
+                  value={belongsToFilter}
+                  onChange={(e) => setBelongsToFilter(e.target.value)}
+                  className="bg-transparent text-slate-200 text-xs focus:outline-none cursor-pointer max-w-[170px] truncate"
+                >
+                  <option value="ALL" className="bg-slate-900">All Sub-folders ({session.students.length})</option>
+                  {uniqueBelongsToList.map(dept => (
+                    <option key={dept} value={dept} className="bg-slate-900">{dept}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {(searchTerm || statusFilter !== 'ALL' || belongsToFilter !== 'ALL' || docFilter.category) && (
               <button
                 onClick={() => {
                   setSearchTerm('');
                   setStatusFilter('ALL');
+                  setBelongsToFilter('ALL');
                   setDocFilter({ category: '', state: 'any' });
                 }}
                 className="px-2.5 py-1 text-xs font-semibold text-indigo-400 hover:text-indigo-300 hover:underline"
@@ -230,9 +279,25 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
                   CNIC
                 </th>
 
+                {/* Belongs To Column */}
+                <th className="py-3.5 px-3 min-w-[180px] border-r border-slate-800">
+                  <div className="flex items-center space-x-1 text-slate-300">
+                    <Folder className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Belongs To (Program / Sub-folder)</span>
+                  </div>
+                </th>
+
                 {/* Status Column */}
                 <th className="py-3.5 px-3 min-w-[120px] border-r border-slate-800">
                   Status
+                </th>
+
+                {/* Exact Folder Documents Column */}
+                <th className="py-3.5 px-3.5 min-w-[230px] border-r border-slate-800">
+                  <div className="flex items-center space-x-1 text-slate-300">
+                    <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Exact Documents in Folder</span>
+                  </div>
                 </th>
 
                 {/* Dynamic Document Columns */}
@@ -258,7 +323,7 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
               {filteredStudents.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5 + categories.length}
+                    colSpan={7 + categories.length}
                     className="py-12 text-center text-slate-400"
                   >
                     No students matched the search or filter criteria.
@@ -283,13 +348,20 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
 
                       {/* Fixed Col 2: Student Name */}
                       <td className="py-3 px-4 font-semibold text-white sticky left-12 z-20 bg-slate-900 group-hover:bg-slate-850 border-r border-slate-800">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1.5">
                           <span className="truncate max-w-[170px]" title={student.studentName}>
                             {student.studentName}
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono truncate max-w-[170px]">
-                          {student.folderName}
+                        <div className="flex items-center space-x-1.5 mt-0.5">
+                          {student.parentFolder && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 truncate max-w-[100px]" title={student.parentFolder}>
+                              {student.parentFolder}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-400 font-mono truncate max-w-[130px]" title={student.folderPath || student.folderName}>
+                            {student.folderName}
+                          </span>
                         </div>
                       </td>
 
@@ -306,9 +378,38 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
                         </span>
                       </td>
 
+                      {/* Belongs To Column */}
+                      <td className="py-3 px-3.5 border-r border-slate-800">
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 max-w-[200px] truncate"
+                          title={student.belongsTo || student.parentFolder || session.folderName}
+                        >
+                          <Folder className="w-3 h-3 mr-1 shrink-0 text-indigo-400" />
+                          <span className="truncate">{student.belongsTo || student.parentFolder || session.folderName}</span>
+                        </span>
+                      </td>
+
                       {/* Status */}
                       <td className="py-3 px-3 border-r border-slate-800">
                         {renderStatusBadge(student.identificationStatus)}
+                      </td>
+
+                      {/* Exact Folder Docs */}
+                      <td className="py-3 px-3.5 border-r border-slate-800">
+                        <div className="flex items-center space-x-1.5 mb-1">
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                            {student.files.length} file{student.files.length !== 1 ? 's' : ''}
+                          </span>
+                          <span className="text-[10px] text-slate-400 truncate max-w-[155px]" title={Array.from(new Set(student.files.map(f => f.category).filter(c => c !== 'Unknown'))).join(', ')}>
+                            {Array.from(new Set(student.files.map(f => f.category).filter(c => c !== 'Unknown'))).join(', ') || 'Needs review'}
+                          </span>
+                        </div>
+                        <div
+                          className="text-[10px] text-slate-500 font-mono truncate max-w-[220px]"
+                          title={student.files.map(f => f.fileName).join(', ')}
+                        >
+                          {student.files.length > 0 ? student.files.map(f => f.fileName).join(', ') : 'Empty Folder'}
+                        </div>
                       </td>
 
                       {/* Dynamic Document Columns */}

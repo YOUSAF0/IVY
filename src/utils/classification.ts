@@ -30,27 +30,37 @@ export const CORE_CATEGORIES = [
 ];
 
 export const CATEGORY_RULES: CategoryRule[] = [
-  // CNIC - check front, back, smart card, national id
+  // CNIC - check front, back, smart card, national id, b-form
   {
     normalizedName: 'CNIC',
     isCore: true,
     patterns: [
-      /\b(cnic|nic|national[-_\s]?id|identity[-_\s]?card|b[-_\s]?form|form[-_\s]?b|smart[-_\s]?card)\b/i,
-      /\bcnic[-_\s]?(front|back|copy|scan)?\b/i,
-      /\b\d{5}[-_]?\d{7}[-_]?\d{1}\b/i,
+      /\b(cnic|nic|national\s*id|identity\s*card|id\s*card|b\s*form|form\s*b|smart\s*card|nadra)\b/i,
+      /\bcnic\s*(front|back|copy|scan|both)?\b/i,
+      /(?<!\d)\d{5}[\s_-]?\d{7}[\s_-]?\d{1}(?!\d)/i,
     ],
-    negativePatterns: [/\bpassport\b/i],
+    negativePatterns: [/\bpassport\b/i, /\bfather\b/i, /\bmother\b/i, /\bguardian\b/i, /\bparent\b/i],
     priority: 100,
+  },
+  // Father / Guardian CNIC (distinct from applicant's own CNIC)
+  {
+    normalizedName: 'Father / Guardian CNIC',
+    isCore: false,
+    patterns: [
+      /\b(father|mother|parent|guardian)\s*(cnic|nic|id\s*card|national\s*id)\b/i,
+      /\b(cnic|nic)\s*(of\s*)?(father|mother|parent|guardian)\b/i,
+    ],
+    priority: 98,
   },
   // Picture / Photo - applicant photo, passport size photo
   {
     normalizedName: 'Pic',
     isCore: true,
     patterns: [
-      /\b(pic|picture|photo|photograph|applicant[-_\s]?pic|applicant[-_\s]?photo|passport[-_\s]?photo|passport[-_\s]?size[-_\s]?photo|profile[-_\s]?pic|headshot|avatar)\b/i,
-      /^img[-_\s]?\d+/i,
+      /\b(pic|pics|picture|photo|photograph|applicant\s*pic|applicant\s*photo|student\s*photo|passport\s*photo|passport\s*size\s*photo|pp\s*size|profile\s*pic|headshot|avatar|selfie)\b/i,
+      /^img\s*\d+/i,
     ],
-    negativePatterns: [/\bcnic\b/i, /\bcard\b/i, /\bcertificate\b/i, /\bdegree\b/i],
+    negativePatterns: [/\bcnic\b/i, /\bcard\b/i, /\bcertificate\b/i, /\bdegree\b/i, /\bpassport\s*(copy|front|scan|bio|page)\b/i],
     priority: 95,
   },
   // O Level
@@ -58,27 +68,27 @@ export const CATEGORY_RULES: CategoryRule[] = [
     normalizedName: 'O Level',
     isCore: true,
     patterns: [
-      /\b(o[-_\s]?level|gce[-_\s]?o[-_\s]?level|ordinary[-_\s]?level|cie[-_\s]?o[-_\s]?level|igcse)\b/i,
+      /\b(o\s*level|olevel|o\s*levels|olevels|gce\s*o\s*level|ordinary\s*level|cie\s*o\s*level|igcse)\b/i,
     ],
-    negativePatterns: [/\ba[-_\s]?level\b/i, /\bas[-_\s]?level\b/i],
-    priority: 90,
+    negativePatterns: [/\ba\s*level\b/i, /\balevel\b/i, /\bas\s*level\b/i],
+    priority: 92,
   },
   // A Level
   {
     normalizedName: 'A Level',
     isCore: true,
     patterns: [
-      /\b(a[-_\s]?level|gce[-_\s]?a[-_\s]?level|advanced[-_\s]?level|cie[-_\s]?a[-_\s]?level|as[-_\s]?level)\b/i,
+      /\b(a\s*level|alevel|a\s*levels|alevels|gce\s*a\s*level|advanced\s*level|cie\s*a\s*level|as\s*level)\b/i,
     ],
-    negativePatterns: [/\bo[-_\s]?level\b/i],
-    priority: 90,
+    negativePatterns: [/\bo\s*level\b/i, /\bolevel\b/i],
+    priority: 92,
   },
   // Personal Statement
   {
     normalizedName: 'Personal Statement',
     isCore: true,
     patterns: [
-      /\b(personal[-_\s]?statement|statement[-_\s]?of[-_\s]?purpose|sop|motivation[-_\s]?letter|letter[-_\s]?of[-_\s]?intent)\b/i,
+      /\b(personal\s*statement|statement\s*of\s*purpose|sop|motivation\s*letter|letter\s*of\s*intent|cover\s*letter)\b/i,
     ],
     priority: 90,
   },
@@ -87,180 +97,258 @@ export const CATEGORY_RULES: CategoryRule[] = [
     normalizedName: 'Eng Proficiency Letter',
     isCore: true,
     patterns: [
-      /\b(eng(lish)?[-_\s]?proficien(cy|t)?[-_\s]?(letter|cert(ificate)?)?|medium[-_\s]?of[-_\s]?instruction|epl)\b/i,
+      /\b(eng(lish)?\s*proficien(cy|t)?\s*(letter|cert(ificate)?)?|medium\s*of\s*instruction|moi|epl)\b/i,
     ],
-    negativePatterns: [/\bielts\b/i, /\btoefl\b/i],
-    priority: 85,
+    negativePatterns: [/\bielts\b/i, /\btoefl\b/i, /\bpte\b/i],
+    priority: 88,
   },
   // HSSC (Intermediate / FSc / FA / ICS)
   {
     normalizedName: 'HSSC',
     isCore: true,
     patterns: [
-      /\b(hssc|intermediate|inter|fsc|f\.sc|fa|f\.a|ics|i\.c\.s|icom|i\.com|12th[-_\s]?(grade|class)|higher[-_\s]?secondary)\b/i,
+      /\b(hssc|intermediate|inter|fsc|f\s*sc|fa|f\s*a|ics|i\s*c\s*s|icom|i\s*com|12th\s*(grade|class)?|higher\s*secondary)\b/i,
     ],
     negativePatterns: [/\bssc\b/i, /\bmatric\b/i, /\b10th\b/i],
-    priority: 85,
+    priority: 88,
   },
   // SSC (Matriculation / Matric / 10th)
   {
     normalizedName: 'SSC',
     isCore: true,
     patterns: [
-      /\b(ssc|matric(ulation)?|10th[-_\s]?(grade|class)|secondary[-_\s]?school[-_\s]?cert(ificate)?)\b/i,
+      /\b(ssc|matric(ulation)?|10th\s*(grade|class)?|secondary\s*school\s*(cert(ificate)?)?)\b/i,
     ],
     negativePatterns: [/\bhssc\b/i, /\bintermediate\b/i, /\b12th\b/i],
-    priority: 85,
+    priority: 88,
   },
   // BTEC
   {
     normalizedName: 'BTEC',
     isCore: true,
-    patterns: [/\b(btec|btec[-_\s]?(national|extended|diploma|hnd)?)\b/i],
-    priority: 85,
+    patterns: [/\b(btec|btec\s*(national|extended|diploma|hnd)?)\b/i],
+    priority: 86,
   },
   // Consent Form
   {
     normalizedName: 'Consent Form',
     isCore: true,
     patterns: [
-      /\b(consent[-_\s]?form|parent[-_\s]?consent|guardian[-_\s]?consent|undertaking|affidavit)\b/i,
+      /\b(consent\s*form|parent\s*consent|guardian\s*consent|undertaking|affidavit|declaration\s*form)\b/i,
     ],
-    priority: 80,
+    priority: 85,
   },
   // Passport
   {
     normalizedName: 'Passport',
     isCore: true,
     patterns: [
-      /\b(passport|passport[-_\s]?(copy|front|first[-_\s]?page|scan|bio))\b/i,
+      /\b(passport|passport\s*(copy|front|first\s*page|scan|bio|page))\b/i,
     ],
-    negativePatterns: [/\bphoto\b/i, /\bpic\b/i],
-    priority: 90,
+    negativePatterns: [/\bphoto\b/i, /\bpic\b/i, /\bsize\b/i],
+    priority: 91,
   },
   // BA Hon
   {
     normalizedName: 'BA Hon',
     isCore: true,
     patterns: [
-      /\b(ba[-_\s]?hon(ours?|s)?|bachelor[-_\s]?of[-_\s]?arts[-_\s]?hon(ours?|s)?|ba\s*\(hon(s)?\))\b/i,
+      /\b(ba\s*hon(ours?|s)?|bachelor\s*of\s*arts\s*hon(ours?|s)?)\b/i,
     ],
-    priority: 85,
+    priority: 86,
   },
   // Degree Completion Certificate
   {
     normalizedName: 'Degree Completion Certificate',
     isCore: true,
     patterns: [
-      /\b(degree[-_\s]?completion[-_\s]?(certificate|cert)?|dcc|provisional[-_\s]?degree[-_\s]?(cert(ificate)?)?|degree[-_\s]?completion)\b/i,
+      /\b(degree\s*completion\s*(certificate|cert)?|dcc|provisional\s*(degree\s*)?(cert(ificate)?)?|completion\s*certificate|hope\s*certificate)\b/i,
     ],
-    priority: 85,
+    priority: 86,
   },
   // HND Business
   {
     normalizedName: 'HND Business',
     isCore: true,
     patterns: [
-      /\b(hnd[-_\s]?business|higher[-_\s]?national[-_\s]?diploma[-_\s]?in[-_\s]?business)\b/i,
+      /\b(hnd\s*business|higher\s*national\s*diploma\s*(in\s*)?business)\b/i,
     ],
-    priority: 85,
+    priority: 86,
   },
   // BS Mass Communication
   {
     normalizedName: 'BS Mass Communication',
     isCore: true,
     patterns: [
-      /\b(bs[-_\s]?mass[-_\s]?comm(unication)?|bachelor[-_\s]?of[-_\s]?science[-_\s]?mass[-_\s]?comm(unication)?)\b/i,
+      /\b(bs\s*mass\s*comm(unication)?|bachelor\s*of\s*science\s*(in\s*)?mass\s*comm(unication)?)\b/i,
     ],
-    priority: 85,
+    priority: 86,
   },
   // BA Business Management
   {
     normalizedName: 'BA Business Management',
     isCore: true,
     patterns: [
-      /\b(ba[-_\s]?business[-_\s]?manag(e|ement)|bba|bachelor[-_\s]?in[-_\s]?business[-_\s]?management)\b/i,
+      /\b(ba\s*business\s*manag(e|ement)|bba|bachelor\s*(in|of)\s*business\s*(management|admin(istration)?))\b/i,
     ],
-    priority: 80,
+    priority: 84,
   },
   // BS Computer Science
   {
     normalizedName: 'BS Computer Science',
     isCore: true,
     patterns: [
-      /\b(bs[-_\s]?computer[-_\s]?science|bscs|bs[-_\s]?cs|bachelor[-_\s]?of[-_\s]?science[-_\s]?computer[-_\s]?science)\b/i,
+      /\b(bs\s*computer\s*science|bscs|bs\s*cs|bachelor\s*of\s*science\s*(in\s*)?computer\s*science)\b/i,
     ],
-    priority: 85,
+    priority: 86,
   },
   // MPhil Clinical & Surgery
   {
     normalizedName: 'MPhil Clinical & Surgery',
     isCore: true,
     patterns: [
-      /\b(mphil[-_\s]?clinical[-_\s]?(&|and)?[-_\s]?surgery|m\.?phil[-_\s]?clinical[-_\s]?surgery)\b/i,
+      /\b(mphil\s*clinical\s*(&|and)?\s*surgery|m\s*phil\s*clinical\s*surgery)\b/i,
     ],
-    priority: 85,
+    priority: 86,
   },
   // Dynamic categories recognized commonly in student documents
   {
     normalizedName: 'IELTS Certificate',
     isCore: false,
-    patterns: [/\b(ielts|ielts[-_\s]?trf|ielts[-_\s]?cert(ificate)?)\b/i],
-    priority: 80,
+    patterns: [/\b(ielts|ielts\s*trf|ielts\s*cert(ificate)?|ielts\s*score)\b/i],
+    priority: 84,
   },
   {
-    normalizedName: 'Work Experience Letter',
+    normalizedName: 'TOEFL / PTE Score',
     isCore: false,
-    patterns: [/\b(work[-_\s]?exp(erience)?[-_\s]?(letter|cert(ificate)?)?|experience[-_\s]?letter|employment[-_\s]?letter)\b/i],
-    priority: 75,
+    patterns: [/\b(toefl|pte|duolingo\s*english)\b/i],
+    priority: 82,
   },
   {
-    normalizedName: 'Recommendation Letter',
+    normalizedName: 'Equivalence Certificate',
     isCore: false,
-    patterns: [/\b(recommendation[-_\s]?(letter|form)?|reference[-_\s]?letter|lor)\b/i],
-    priority: 75,
-  },
-  {
-    normalizedName: 'Character Certificate',
-    isCore: false,
-    patterns: [/\b(character[-_\s]?(cert(ificate)?|conduct))\b/i],
-    priority: 75,
+    patterns: [/\b(equivalence|ibcc|hec\s*equivalence|equivalency)\b/i],
+    priority: 82,
   },
   {
     normalizedName: 'Official Transcript',
     isCore: false,
-    patterns: [/\b(official[-_\s]?transcript|transcript[-_\s]?of[-_\s]?records|academic[-_\s]?transcript|mark[-_\s]?sheet)\b/i],
-    priority: 70,
+    patterns: [/\b(official\s*transcript|transcript\s*of\s*records|academic\s*transcript|transcript|mark\s*sheet|marksheet|dmc|detail(ed)?\s*marks\s*cert(ificate)?|result\s*card)\b/i],
+    priority: 78,
+  },
+  {
+    normalizedName: 'Domicile Certificate',
+    isCore: false,
+    patterns: [/\b(domicile|prc)\b/i],
+    priority: 82,
+  },
+  {
+    normalizedName: 'Character Certificate',
+    isCore: false,
+    patterns: [/\b(character\s*(cert(ificate)?|conduct)?|good\s*conduct)\b/i],
+    priority: 80,
+  },
+  {
+    normalizedName: 'Migration Certificate',
+    isCore: false,
+    patterns: [/\b(migration\s*(cert(ificate)?)?|noc|no\s*objection\s*cert(ificate)?|transfer\s*cert(ificate)?)\b/i],
+    priority: 80,
+  },
+  {
+    normalizedName: 'Family Registration Certificate (FRC)',
+    isCore: false,
+    patterns: [/\b(frc|family\s*registration\s*cert(ificate)?)\b/i],
+    priority: 82,
+  },
+  {
+    normalizedName: 'Birth Certificate',
+    isCore: false,
+    patterns: [/\b(birth\s*cert(ificate)?|crc)\b/i],
+    priority: 82,
+  },
+  {
+    normalizedName: 'Fee Challan / Receipt',
+    isCore: false,
+    patterns: [/\b(fee\s*(challan|receipt|voucher|slip|paid)|challan|bank\s*receipt|payment\s*receipt)\b/i],
+    priority: 80,
+  },
+  {
+    normalizedName: 'Admission / Application Form',
+    isCore: false,
+    patterns: [/\b(application\s*form|admission\s*form|enrollment\s*form|registration\s*form)\b/i],
+    priority: 78,
+  },
+  {
+    normalizedName: 'Medical Fitness Certificate',
+    isCore: false,
+    patterns: [/\b(medical\s*(fitness|cert(ificate)?|report|exam)|health\s*cert(ificate)?|vaccination)\b/i],
+    priority: 78,
+  },
+  {
+    normalizedName: 'Work Experience Letter',
+    isCore: false,
+    patterns: [/\b(work\s*exp(erience)?\s*(letter|cert(ificate)?)?|experience\s*letter|employment\s*letter)\b/i],
+    priority: 78,
+  },
+  {
+    normalizedName: 'Recommendation Letter',
+    isCore: false,
+    patterns: [/\b(recommendation\s*(letter|form)?|reference\s*letter|lor)\b/i],
+    priority: 78,
   },
   {
     normalizedName: 'Resume / CV',
     isCore: false,
-    patterns: [/\b(resume|cv|curriculum[-_\s]?vitae)\b/i],
-    priority: 75,
+    patterns: [/\b(resume|cv|curriculum\s*vitae)\b/i],
+    priority: 78,
   },
 ];
+
+/**
+ * Normalizes a filename or folder hint into space-separated tokens so regex word boundaries (\b)
+ * work properly even when files use underscores (_), dots (.), hyphens (-), or camelCase.
+ */
+export function normalizeForClassification(raw: string): string {
+  const withoutExt = raw.replace(/\.[a-zA-Z0-9]{1,6}$/, '').trim();
+  // Split camelCase like "PersonalStatement" -> "Personal Statement"
+  const splitCamel = withoutExt.replace(/([a-z])([A-Z])/g, '$1 $2');
+  // Replace underscores, hyphens, dots, slashes with spaces
+  return splitCamel.replace(/[_\-./\\()[\]{}]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 /**
  * Normalizes file name into clean, title-cased dynamic category if not matched by standard rules.
  */
 export function extractDynamicCategoryFromFilename(rawName: string): string | null {
-  // Remove file extension
-  const clean = rawName.replace(/\.[a-zA-Z0-9]+$/, '').trim();
+  // Always extract only the basename if a path was passed
+  const baseName = rawName.split('/').pop() || rawName;
+  const withoutExt = baseName.replace(/\.[a-zA-Z0-9]{1,6}$/, '').trim();
 
-  // Remove common prefix tokens like "01_", "Document_", student names if present
-  const stripped = clean
-    .replace(/^(\d+[-_.\s]*)+/g, '')
-    .replace(/[-_]/g, ' ')
+  // Strip CNICs, leading index numbers, common noise words
+  let stripped = withoutExt
+    .replace(/\d{5}[-_\s]?\d{7}[-_\s]?\d{1}/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_\-.()[\]{}]+/g, ' ')
+    .replace(/^\s*(\d+\s+)+/g, '')
+    .replace(/\b(copy|scan|scanned|final|draft|new|updated|verified|attested)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 
-  // If matches known degree or certificate patterns
+  if (!stripped) return null;
+
+  // Reject purely generic scanner / camera names with no semantic meaning
+  if (/^(img|dsc|photo|image|scan|doc|document|file|untitled|upload|whatsapp image|camscanner|page|pdf|\d+)(\s*\d+)*$/i.test(stripped)) {
+    return null;
+  }
+
+  // If matches known degree or certificate patterns, prefer the clean phrase
   const degreeMatch = stripped.match(/\b(BS|MS|BA|MA|BSc|MSc|BBA|MBA|BTEC|HND|Diploma|Certificate|Degree|Letter|Affidavit)\s+[A-Za-z\s&]+/i);
   if (degreeMatch) {
     return titleCase(degreeMatch[0].trim());
   }
 
-  // If words contain certificate or letter
-  if (/certificate|letter|statement|diploma|card|report/i.test(stripped)) {
+  // Any clean descriptive filename >= 3 alphabetic chars becomes its own dynamic document category
+  if (stripped.replace(/[^a-zA-Z]/g, '').length >= 3) {
     return titleCase(stripped);
   }
 
@@ -277,12 +365,13 @@ export function titleCase(str: string): string {
 }
 
 /**
- * Classifies a single file using filenames, extensions, MIME types, and pattern weights.
+ * Classifies a single file using filenames, extensions, MIME types, optional folder hint, and pattern weights.
  */
 export function classifyDocumentFile(
   fileName: string,
   mimeType: string = '',
-  customRules: CategoryRule[] = []
+  customRules: CategoryRule[] = [],
+  folderHint: string = ''
 ): {
   category: string;
   confidence: ConfidenceLevel;
@@ -294,35 +383,46 @@ export function classifyDocumentFile(
     (a, b) => b.priority - a.priority
   );
 
-  const cleanName = fileName.replace(/\.[a-zA-Z0-9]+$/, '').trim();
+  // Extract pure filename (in case a path was passed)
+  const pureFileName = fileName.includes('/') ? fileName.split('/').pop() || fileName : fileName;
+  const folderFromPath = fileName.includes('/') ? fileName.split('/').slice(0, -1).join(' ') : '';
+  const effectiveFolderHint = [folderHint, folderFromPath].filter(Boolean).join(' ').trim();
 
-  // Check against rules
-  const matchedRules: { rule: CategoryRule; score: number }[] = [];
+  const normalizedFileText = normalizeForClassification(pureFileName);
+  const normalizedCombinedText = effectiveFolderHint
+    ? `${normalizeForClassification(effectiveFolderHint)} ${normalizedFileText}`
+    : normalizedFileText;
 
-  for (const rule of combinedRules) {
-    if (rule.negativePatterns?.some(np => np.test(cleanName))) {
-      continue;
-    }
-
-    for (const pat of rule.patterns) {
-      if (pat.test(cleanName)) {
-        let score = rule.priority;
-        // Boost if image mime type matches Pic
-        if (rule.normalizedName === 'Pic' && mimeType.startsWith('image/')) {
-          score += 10;
+  // Check rules first against the file's own name, then fallback to folderHint + fileName
+  const matchAgainstText = (text: string): { rule: CategoryRule; score: number }[] => {
+    const matches: { rule: CategoryRule; score: number }[] = [];
+    for (const rule of combinedRules) {
+      if (rule.negativePatterns?.some(np => np.test(text))) {
+        continue;
+      }
+      for (const pat of rule.patterns) {
+        if (pat.test(text)) {
+          let score = rule.priority;
+          if (rule.normalizedName === 'Pic' && mimeType.startsWith('image/')) {
+            score += 10;
+          }
+          matches.push({ rule, score });
+          break;
         }
-        matchedRules.push({ rule, score });
-        break;
       }
     }
+    return matches;
+  };
+
+  let matchedRules = matchAgainstText(normalizedFileText);
+  if (matchedRules.length === 0 && effectiveFolderHint) {
+    matchedRules = matchAgainstText(normalizedCombinedText);
   }
 
   if (matchedRules.length > 0) {
-    // Sort highest score first
     matchedRules.sort((a, b) => b.score - a.score);
     const top = matchedRules[0];
 
-    // Check confidence
     if (top.score >= 85) {
       return {
         category: top.rule.normalizedName,
@@ -342,7 +442,7 @@ export function classifyDocumentFile(
 
   // If image without clear name, check if it looks like a photo
   if (mimeType.startsWith('image/')) {
-    if (/^(img|dsc|photo|image|scan|p_)\d+/i.test(cleanName)) {
+    if (/^(img|dsc|photo|image|scan|p)\s*\d+/i.test(normalizedFileText) || /^(img|dsc|photo|image)/i.test(normalizedFileText)) {
       return {
         category: 'Pic',
         confidence: 'MEDIUM',
@@ -353,15 +453,18 @@ export function classifyDocumentFile(
     }
   }
 
-  // Attempt dynamic discovery
-  const dynamicCat = extractDynamicCategoryFromFilename(fileName);
-  if (dynamicCat && dynamicCat.length > 3 && !/^(document|file|untitled|scan|upload)/i.test(dynamicCat)) {
+  // Attempt dynamic discovery from filename (or folder hint if filename is generic like scan1.pdf)
+  const dynamicCat =
+    extractDynamicCategoryFromFilename(pureFileName) ||
+    (effectiveFolderHint ? extractDynamicCategoryFromFilename(effectiveFolderHint) : null);
+
+  if (dynamicCat && dynamicCat.length >= 3) {
     return {
       category: dynamicCat,
       confidence: 'MEDIUM',
       detectionMethod: 'Filename Pattern',
       possibleCategories: [dynamicCat],
-      reason: `Discovered dynamic document category from '${fileName}'`,
+      reason: `Discovered dynamic document category from '${pureFileName}'`,
     };
   }
 
